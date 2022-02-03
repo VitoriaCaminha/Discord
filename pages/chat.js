@@ -1,18 +1,61 @@
 import { Box, Text, TextField, Image, Button } from "@skynexui/components";
 import React from "react";
 import appConfig from "../config.json";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/router";
+import { ButtonSendSticker } from "../src/components/ButtonSendSticker";
+
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTY0Mzc2MzU5MSwiZXhwIjoxOTU5MzM5NTkxfQ.c0uJE8Zf-yUfIxjNm4QWf2pV8ytWbHeQe4tcZoujpoQ";
+const SUPABASE_URL = "https://vqwlwipxxlvtbrutwnqe.supabase.co";
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function escutaMensagensEmTempoReal(adicionaMensagem) {
+  return supabaseClient
+    .from("mensagens")
+    .on("INSERT", (respostaLive) => {
+      adicionaMensagem(respostaLive.new);
+    })
+    .subscribe();
+}
 
 export default function ChatPage() {
+  const rota = useRouter();
+  const usuarioLogado = rota.query.username;
   const [mensagem, setMensagem] = React.useState("");
   const [listaDeMensagens, setListaDeMensagens] = React.useState([]);
 
+  React.useEffect(() => {
+    supabaseClient
+      .from("mensagens")
+      .select("*")
+      .order("id", { ascending: false })
+      .then(({ data }) => {
+        setListaDeMensagens(data);
+      });
+
+    const subscription = escutaMensagensEmTempoReal((novaMensagem) => {
+      setListaDeMensagens((valorAtualDaLista) => {
+        return [novaMensagem, ...valorAtualDaLista];
+      });
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   function handleNovaMensagem(novaMensagem) {
     const mensagem = {
-      id: listaDeMensagens.length + 1,
-      de: "vitoria",
+      de: usuarioLogado,
       texto: novaMensagem,
     };
-    setListaDeMensagens([mensagem, ...listaDeMensagens]);
+
+    supabaseClient
+      .from("mensagens")
+      .insert([mensagem])
+      .then(({ data }) => {
+        setListaDeMensagens([data[0], ...listaDeMensagens]);
+      });
     setMensagem("");
   }
   return (
@@ -39,9 +82,9 @@ export default function ChatPage() {
           borderRadius: "5px",
           backgroundColor: appConfig.theme.colors.neutrals[700],
           height: "100%",
-          maxWidth: "95%",
+          maxWidth: "65%",
           maxHeight: "95vh",
-          padding: "32px",
+          padding: "30px",
         }}
       >
         <Header />
@@ -90,6 +133,11 @@ export default function ChatPage() {
                 backgroundColor: appConfig.theme.colors.neutrals[800],
                 marginRight: "12px",
                 color: appConfig.theme.colors.neutrals[200],
+              }}
+            />
+            <ButtonSendSticker
+              onStickerClick={(sticker) => {
+                handleNovaMensagem(":sticker:" + sticker);
               }}
             />
           </Box>
@@ -145,6 +193,7 @@ function MessageList(props) {
               borderRadius: "5px",
               padding: "6px",
               marginBottom: "12px",
+              maxWidth: "10vw",
               hover: {
                 backgroundColor: appConfig.theme.colors.neutrals[700],
               },
@@ -159,13 +208,13 @@ function MessageList(props) {
             >
               <Image
                 styleSheet={{
-                  width: "20px",
-                  height: "20px",
+                  width: "30px",
+                  height: "30px",
                   borderRadius: "50%",
                   display: "inline-block",
                   marginRight: "10px",
                 }}
-                src={`https://github.com/vanessametonini.png`}
+                src={`https://github.com/${mensagem.de}.png`}
               />
               <Text tag="strong">{mensagem.de}</Text>
               <Text
@@ -179,7 +228,11 @@ function MessageList(props) {
                 {new Date().toLocaleDateString()}
               </Text>
             </Box>
-            {mensagem.texto}
+            {mensagem.texto.startsWith(":sticker:") ? (
+              <Image src={mensagem.texto.replace(":sticker:", "")} />
+            ) : (
+              mensagem.texto
+            )}
           </Text>
         );
       })}

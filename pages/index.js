@@ -66,7 +66,7 @@ export default function PaginaInicial() {
               infosDoEvento.preventDefault();
               // Forma tradicional de criar uma rota
               // window.location.href = "/chat";
-              rota.push("./chat");
+              rota.push(`./chat?username=${username}`);
             }}
             styleSheet={{
               display: "flex",
